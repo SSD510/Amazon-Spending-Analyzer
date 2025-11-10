@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 st.title("Amazon Spending Analyzer")
 st.write("Upload your Amazon spending data to visualize your expenses over time.")
 
-uploaded_file = st.file_uploader("Choose CSV file"m type = "csv")
+uploaded_file = st.file_uploader("Choose CSV file", type = "csv")
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
 
