@@ -10,11 +10,11 @@ if uploaded_file:
     df = pd.read_csv(uploaded_file)
 
     # Normalize column names
+    
     df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
 
-    # ----------------------------
     # Detect price column
-    # ----------------------------
+
     price_col = None
     price_keywords = ["total", "charged", "price", "amount", "cost"]
 
@@ -36,9 +36,9 @@ if uploaded_file:
         .astype(float)
     )
 
-    # ----------------------------
+ 
     # Detect title column
-    # ----------------------------
+
     title_candidates = [
         "title", "item_name", "item", "product_name",
         "description", "product_title", "order_item"
@@ -46,15 +46,15 @@ if uploaded_file:
 
     title_col = next((col for col in df.columns if col in title_candidates), None)
 
-    # ----------------------------
+ 
     # Display totals
-    # ----------------------------
+ 
     total_spent = df[price_col].sum()
     st.metric("Total Spent", f"${total_spent:,.2f}")
 
-    # ----------------------------
+ 
     # Top purchases
-    # ----------------------------
+ 
     st.subheader("Top 10 Most Expensive Purchases")
 
     if title_col:
@@ -65,9 +65,9 @@ if uploaded_file:
 
     st.dataframe(top_items)
 
-    # ----------------------------
+ 
     # Category breakdown
-    # ----------------------------
+ 
     if "category" in df.columns:
         cat_sum = df.groupby("category")[price_col].sum().sort_values(ascending=False)
         st.subheader("Spending by Category")
@@ -75,9 +75,9 @@ if uploaded_file:
     else:
         st.info("No 'category' column found, skipping category breakdown.")
 
-    # ----------------------------
+ 
     # Time breakdown (Tabs + Modes)
-    # ----------------------------
+ 
     if "order_date" in df.columns:
         df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
 
@@ -94,9 +94,9 @@ if uploaded_file:
 
         st.subheader("Time-Based Spending Analysis")
 
-        # ----------------------------
+     
         # Tabs
-        # ----------------------------
+     
         tab1, tab2, tab3, tab4 = st.tabs([
             "📅 Monthly", 
             "📆 Weekly", 
@@ -104,9 +104,9 @@ if uploaded_file:
             "📊 Rolling Averages"
         ])
 
-        # ----------------------------
+     
         # Year filter
-        # ----------------------------
+     
         years = sorted(df["year"].unique())
         selected_year = st.selectbox("Filter by Year", ["All"] + years)
 
@@ -115,9 +115,9 @@ if uploaded_file:
         else:
             df_filtered = df
 
-        # ----------------------------
+     
         # MONTHLY TAB
-        # ----------------------------
+     
         with tab1:
             st.write("### Monthly Spending Breakdown")
 
@@ -134,9 +134,9 @@ if uploaded_file:
             monthly_df.columns = ["Month", "Total Spent"]
             st.dataframe(monthly_df)
 
-        # ----------------------------
+     
         # WEEKLY TAB
-        # ----------------------------
+     
         with tab2:
             st.write("### Weekly Spending Breakdown")
 
@@ -147,9 +147,9 @@ if uploaded_file:
             weekly_df.columns = ["Week", "Total Spent"]
             st.dataframe(weekly_df)
 
-        # ----------------------------
+     
         # YEARLY TAB
-        # ----------------------------
+     
         with tab3:
             st.write("### Yearly Spending Breakdown")
 
@@ -161,9 +161,9 @@ if uploaded_file:
             yearly_df.columns = ["Year", "Total Spent"]
             st.dataframe(yearly_df)
 
-        # ----------------------------
+     
         # ROLLING AVERAGE TAB
-        # ----------------------------
+     
         with tab4:
             st.write("### 3-Month Rolling Spending Average")
 
