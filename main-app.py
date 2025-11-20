@@ -366,7 +366,7 @@ def items_page(df):
             dates = g['order_date'].dropna().sort_values().unique()
             if len(dates) > 1:
                 diffs = pd.Series(dates).diff().dropna().dt.days
-n                intervals.append({'title': title, 'median_days': float(diffs.median()), 'count': len(dates)})
+                 intervals.append({'title': title, 'median_days': float(diffs.median()), 'count': len(dates)})
         if intervals:
             intervals_df = pd.DataFrame(intervals).sort_values('median_days')
             st.dataframe(intervals_df.head(50))
