@@ -5,6 +5,50 @@
 
 import streamlit as st
 import pandas as pd
+import zipfile
+import io
+import altair as alt  # replacing plotly for portability
+
+# --- File Upload ---
+st.header("Upload Your Amazon ZIP Export")
+uploaded_file = st.file_uploader("Upload the .zip file you downloaded from Amazon", type=["zip"])
+
+# Placeholder for data until uploaded
+orders = None
+refunds = None
+digital = None
+
+if uploaded_file:
+    with zipfile.ZipFile(uploaded_file) as z:
+        sheet_files = [f for f in z.namelist() if f.lower().endswith((".csv", ".xlsx"))]
+
+        def load_sheet(file):
+            with z.open(file) as f:
+                if file.lower().endswith(".csv"):
+                    return pd.read_csv(f)
+                else:
+                    return pd.read_excel(f)
+
+        for file in sheet_files:
+            name = file.lower()
+            df = load_sheet(file)
+            if "order" in name and orders is None:
+                orders = df
+            elif "refund" in name and refunds is None:
+                refunds = df
+            elif "digital" in name and digital is None:
+                digital = df
+
+    if orders is not None:
+        orders['Order Date'] = pd.to_datetime(orders['Order Date'], errors='coerce')
+        orders = orders.dropna(subset=['Order Date'])
+        orders['Subtotal'] = pd.to_numeric(orders.get('Item Subtotal', 0), errors='coerce').fillna(0)
+    else:
+        st.error("Orders file not found in the uploaded ZIP.")
+        st.stop()
+
+# Continue with original app after this point
+import pandas as pd
 import numpy as np
 import zipfile
 import io
