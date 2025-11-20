@@ -261,6 +261,12 @@ def build_canonical_orders(tables: dict[str, pd.DataFrame]):
 
     if "order_date" in df.columns:
         df["order_date"] = df["order_date"].apply(safe_date_parse)
+        # Normalize timezone: convert tz-aware datetimes to naive for safe comparison
+        try:
+            if pd.api.types.is_datetime64tz_dtype(df["order_date"]):
+                df["order_date"] = df["order_date"].dt.tz_convert(None)
+        except Exception:
+            pass
     else:
         # attempt to detect any date column
         for c in df.columns:
