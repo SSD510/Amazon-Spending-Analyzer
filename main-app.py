@@ -27,6 +27,56 @@ st.write(
 )
 
 # -----------------------------
+# CATEGORY INFERENCE
+# -----------------------------
+def infer_category_from_title(title: str) -> str:
+    """Heuristic category inference based on product title text."""
+    t = str(title).lower()
+
+    # Pet stuff
+    if any(k in t for k in ["tiki cat", "cat food", "dog food", "pet", "litter"]):
+        return "Pet Supplies"
+
+    # Electronics / phone accessories
+    if any(k in t for k in ["iphone", "phone case", "screen protector", "ipad",
+                            "charger", "usb", "bluetooth", "airpods", "adapter"]):
+        return "Electronics / Phone Accessories"
+
+    # Clothing
+    if any(k in t for k in ["hanes", "shirt", "hoodie", "jeans", "pants", "shorts",
+                            "jacket", "sock", "boxers", "t-shirt", "sweater"]):
+        return "Clothing"
+
+    # Groceries / food
+    if any(k in t for k in ["whole foods", "produce", "sourdough", "organic",
+                            "potato", "cucumber", "zucchini", "bread", "loaf",
+                            "spinach", "kale", "apple", "banana"]):
+        return "Groceries"
+
+    # Arts & crafts / jewelry making
+    if any(k in t for k in ["beads", "bracelet", "earrings", "necklace", "diy",
+                            "craft", "organza", "pin backs", "polymer clay"]):
+        return "Arts & Crafts"
+
+    # Personal care / hygiene
+    if any(k in t for k in ["soap", "shampoo", "conditioner", "lotion",
+                            "deodorant", "body wash", "toothpaste", "skincare"]):
+        return "Personal Care"
+
+    # Home / lighting / decor
+    if any(k in t for k in ["light", "lamp", "desk lamp", "clip on light", "bulb",
+                            "curtain", "pillow", "blanket", "sheet set"]):
+        return "Home & Lighting"
+
+    # Health & fitness
+    if any(k in t for k in ["vitamin", "protein", "supplement", "creatine",
+                            "omega-3", "preworkout", "dumbbell", "kettlebell"]):
+        return "Health & Fitness"
+
+    return "Other"
+
+
+# -----------------------------
 # FILE UPLOAD
 # -----------------------------
 uploaded_file = st.file_uploader("Upload Amazon ZIP file", type=["zip"])
@@ -238,7 +288,7 @@ def build_canonical_orders(tables: dict[str, pd.DataFrame]):
             rename_map[colmap[key]] = "item_price"
             break
 
-    # Category-ish
+    # Category-ish (if Amazon ever provides it)
     for key in ("category", "product type", "department", "asin category"):
         if key in colmap:
             rename_map[colmap[key]] = "category"
@@ -287,6 +337,7 @@ def build_canonical_orders(tables: dict[str, pd.DataFrame]):
     df["weekday"] = df["order_date"].dt.day_name()
     df["hour"] = df["order_date"].dt.hour
 
+    # Title column
     if "title" not in df.columns:
         possible_title = [
             c
@@ -297,6 +348,10 @@ def build_canonical_orders(tables: dict[str, pd.DataFrame]):
             df["title"] = df[possible_title[0]]
         else:
             df["title"] = "Unknown"
+
+    # If no real category, derive from title
+    if "category" not in df.columns or df["category"].nunique(dropna=True) <= 1:
+        df["category"] = df["title"].apply(infer_category_from_title)
 
     # Try to merge cart items for richer info (if present)
     cart_file = None
