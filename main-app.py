@@ -70,7 +70,7 @@ def infer_category_from_title(title: str) -> str:
 
     # Health & fitness
     if any(k in t for k in ["vitamin", "protein", "supplement", "creatine",
-                            "omega-3", "preworkout", "dumbbell", "kettlebell"]):
+                            "omega-3", "preworkout", "dumbbell", "kettlebell", "weight"]):
         return "Health & Fitness"
 
     return "Other"
