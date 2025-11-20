@@ -1,6 +1,4 @@
 # Amazon Shopping Data — Full Streamlit Dashboard (Option A)
-# Drop this into a Python environment with:
-#   pip install streamlit pandas plotly openpyxl
 # Run with:
 #   streamlit run Amazon_Streamlit_Dashboard.py
 
@@ -22,7 +20,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.title("📦 Amazon Spending Analyzer — Multi‑Page Dashboard")
+st.title("📦 Amazon Spending Analyzer — Multi-Page Dashboard")
 st.write(
     "Upload your **Amazon Order History ZIP** (from Amazon's 'Request My Data' page) "
     "to explore spending, categories, returns, digital orders, and more."
@@ -43,7 +41,6 @@ zip_bytes = uploaded_file.read()
 # -----------------------------
 # ZIP HELPERS (BYTES-BASED)
 # -----------------------------
-
 @st.cache_data(show_spinner=False)
 def list_zip_files(zip_bytes: bytes):
     with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as z:
@@ -54,12 +51,14 @@ def list_zip_files(zip_bytes: bytes):
 def read_csv_from_zip(zip_bytes: bytes, member: str) -> pd.DataFrame:
     with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as z:
         with z.open(member) as f:
-            # Try straightforward CSV read; if that fails, wrap in TextIOWrapper
             try:
                 df = pd.read_csv(f, dtype=str)
             except Exception:
                 f.seek(0)
-                df = pd.read_csv(io.TextIOWrapper(f, encoding="utf-8", errors="replace"), dtype=str)
+                df = pd.read_csv(
+                    io.TextIOWrapper(f, encoding="utf-8", errors="replace"),
+                    dtype=str,
+                )
     return df
 
 
@@ -112,7 +111,6 @@ def load_all_tables(zip_bytes: bytes):
 # -----------------------------
 # NORMALIZATION UTILITIES
 # -----------------------------
-
 def safe_money(x):
     """Convert currency-like strings to float, return NaN on failure."""
     if pd.isna(x):
@@ -157,7 +155,6 @@ def safe_date_parse(s):
 # -----------------------------
 # BUILD CANONICAL ORDER DATAFRAME
 # -----------------------------
-
 @st.cache_data(show_spinner=False)
 def build_canonical_orders(tables: dict[str, pd.DataFrame]):
     """Return (orders_df, order_file_name) using heuristics on Amazon exports."""
@@ -218,16 +215,19 @@ def build_canonical_orders(tables: dict[str, pd.DataFrame]):
             break
 
     # Title / item name
-    for key in ("title", "item title", "product title", "order item", "product_title"):
+    for key in ("title", "item title", "product title", "order item", "product_title", "product name"):
         if key in colmap:
             rename_map[colmap[key]] = "title"
             break
 
-    # Price / subtotal
+    # Price / subtotal (extended for your file)
     for key in (
+        "shipment item subtotal",
         "item subtotal",
         "item subtotal:",
         "subtotal",
+        "total owed",
+        "unit price",
         "price",
         "item price",
         "amount",
@@ -272,6 +272,11 @@ def build_canonical_orders(tables: dict[str, pd.DataFrame]):
         for c in df.columns:
             if "date" in c.lower():
                 df["order_date"] = df[c].apply(safe_date_parse)
+                try:
+                    if pd.api.types.is_datetime64tz_dtype(df["order_date"]):
+                        df["order_date"] = df["order_date"].dt.tz_convert(None)
+                except Exception:
+                    pass
                 break
         if "order_date" not in df.columns:
             df["order_date"] = pd.NaT
@@ -318,7 +323,6 @@ def build_canonical_orders(tables: dict[str, pd.DataFrame]):
 # -----------------------------
 # FILTERS PANEL (DATA SCIENTIST MODE)
 # -----------------------------
-
 def filters_panel(df: pd.DataFrame) -> pd.DataFrame:
     st.sidebar.header("Filters & Controls")
 
@@ -326,13 +330,12 @@ def filters_panel(df: pd.DataFrame) -> pd.DataFrame:
     min_date = df["order_date"].min() if "order_date" in df.columns else None
     max_date = df["order_date"].max() if "order_date" in df.columns else None
 
+    date_range = None
     if min_date is not None and pd.notna(min_date) and max_date is not None and pd.notna(max_date):
         date_range = st.sidebar.date_input(
             "Date range",
             value=(min_date.date(), max_date.date()),
         )
-    else:
-        date_range = None
 
     keyword = st.sidebar.text_input("Product keyword (in title)")
     category_options = ["All"]
@@ -376,7 +379,6 @@ def filters_panel(df: pd.DataFrame) -> pd.DataFrame:
 # -----------------------------
 # PAGES
 # -----------------------------
-
 def overview_page(df: pd.DataFrame, tables: dict[str, pd.DataFrame]):
     st.title("Overview — Amazon Spending Dashboard")
 
@@ -432,10 +434,7 @@ def overview_page(df: pd.DataFrame, tables: dict[str, pd.DataFrame]):
     st.markdown("---")
     st.subheader("Ordering time-of-day heatmap")
     if "hour" in df.columns:
-        heat = (
-            df.groupby(["weekday", "hour"]).size().unstack(fill_value=0)
-        )
-        # Ensure weekday order
+        heat = df.groupby(["weekday", "hour"]).size().unstack(fill_value=0)
         weekdays = [
             "Monday",
             "Tuesday",
@@ -545,7 +544,7 @@ def items_page(df: pd.DataFrame):
             st.write("Items with the shortest median refill intervals:")
             st.dataframe(intervals_df.head(50), use_container_width=True)
 
-    st.markdown("### Naive next‑reorder suggestions")
+    st.markdown("### Naive next-reorder suggestions")
     st.info(
         "Uses median refill interval per title to suggest next order date. "
         "This is intentionally simple — not a full forecast."
@@ -628,7 +627,6 @@ def raw_tables_page(tables: dict[str, pd.DataFrame]):
 # -----------------------------
 # MAIN APP
 # -----------------------------
-
 def main():
     with st.spinner("Parsing ZIP and loading tables..."):
         tables = load_all_tables(zip_bytes)
