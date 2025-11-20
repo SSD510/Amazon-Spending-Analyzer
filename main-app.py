@@ -731,7 +731,6 @@ def main():
         raw_tables_page(tables)
 
     st.sidebar.markdown("---")
-    st.sidebar.write("Built for you by Roci 🛰️")
 
 
 if __name__ == "__main__":
