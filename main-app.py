@@ -1,4 +1,4 @@
-# Amazon Shopping Data — Full Streamlit Dashboard (Option A)
+# Amazon Shopping Data — Full Streamlit Dashboard with Insights
 # Run with:
 #   streamlit run Amazon_Streamlit_Dashboard.py
 
@@ -23,7 +23,7 @@ st.set_page_config(
 st.title("📦 Amazon Spending Analyzer — Multi-Page Dashboard")
 st.write(
     "Upload your **Amazon Order History ZIP** (from Amazon's 'Request My Data' page) "
-    "to explore spending, categories, returns, digital orders, and more."
+    "to explore spending, behavior, carbon footprint, and whether Prime is worth it."
 )
 
 # -----------------------------
@@ -70,7 +70,7 @@ def infer_category_from_title(title: str) -> str:
 
     # Health & fitness
     if any(k in t for k in ["vitamin", "protein", "supplement", "creatine",
-                            "omega-3", "preworkout", "dumbbell", "kettlebell", "weight"]):
+                            "omega-3", "preworkout", "dumbbell", "kettlebell"]):
         return "Health & Fitness"
 
     return "Other"
@@ -432,7 +432,7 @@ def filters_panel(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # -----------------------------
-# PAGES
+# PAGES (Overview, Categories, Items, Returns, Digital, Cart, Raw)
 # -----------------------------
 def overview_page(df: pd.DataFrame, tables: dict[str, pd.DataFrame]):
     st.title("Overview — Amazon Spending Dashboard")
@@ -680,6 +680,196 @@ def raw_tables_page(tables: dict[str, pd.DataFrame]):
 
 
 # -----------------------------
+# INSIGHTS / CARBON FOOTPRINT PAGE
+# -----------------------------
+def insights_page(df: pd.DataFrame):
+    st.title("🧠 Deep Insights — Behavior, Prime Value, and Carbon Footprint")
+
+    # Safety checks
+    if "order_id" not in df.columns or "order_date" not in df.columns or "item_price" not in df.columns:
+        st.warning("Required columns (order_id, order_date, item_price) missing for insights.")
+        return
+
+    # Basic metrics
+    total_orders = df["order_id"].nunique()
+    total_spend = df["item_price"].sum(skipna=True)
+
+    st.subheader("📦 Overview Metrics")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Orders", total_orders)
+    c2.metric("Total Spend", f"${total_spend:,.2f}")
+    c3.metric("Avg Spend per Order", f"${(total_spend / total_orders):.2f}" if total_orders > 0 else "N/A")
+
+    # Prime value
+    st.markdown("---")
+    st.subheader("💸 Amazon Prime — Is It Worth It on Shipping Alone?")
+
+    PRIME_COST = 139
+    NON_PRIME_SHIPPING_COST = 5.99  # conservative estimate per shipment
+    shipping_savings = total_orders * NON_PRIME_SHIPPING_COST
+    net_value = shipping_savings - PRIME_COST
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Estimated Shipping Savings", f"${shipping_savings:,.2f}")
+    c2.metric("Prime Membership Cost", f"${PRIME_COST}")
+    c3.metric("Net Value of Prime", f"${net_value:,.2f}")
+
+    if net_value > 0:
+        st.success("Prime likely **paid for itself** based on shipping savings alone.")
+    else:
+        st.info("Prime may **not have fully paid for itself** on shipping alone.")
+
+    # Carbon footprint
+    st.markdown("---")
+    st.subheader("🌍 Estimated Carbon Footprint of Your Orders")
+
+    EMISSIONS_PER_PACKAGE = 1.0  # kg CO2e, delivery
+    PACKAGING_WASTE = 0.3        # kg CO2e, packaging
+    per_order_emissions = EMISSIONS_PER_PACKAGE + PACKAGING_WASTE
+
+    est_total_emissions = total_orders * per_order_emissions
+    st.metric("Estimated CO₂ Footprint", f"{est_total_emissions:,.1f} kg CO₂e")
+    st.caption(
+        "Estimate based on average last-mile delivery and packaging emissions per shipment. "
+        "This is a rough but useful approximation for personal impact."
+    )
+
+    # Monthly emissions chart
+    df_monthly = df.copy()
+    df_monthly["month"] = df_monthly["order_date"].dt.to_period("M").dt.to_timestamp()
+    monthly_orders = df_monthly.groupby("month")["order_id"].nunique().reset_index()
+    monthly_orders["emissions"] = monthly_orders["order_id"] * per_order_emissions
+
+    if not monthly_orders.empty:
+        fig = px.area(
+            monthly_orders,
+            x="month",
+            y="emissions",
+            title="Monthly Estimated Carbon Footprint (kg CO₂e)",
+        )
+        fig.update_layout(xaxis_title="Month", yaxis_title="Estimated kg CO₂e")
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Impulse index
+    st.markdown("---")
+    st.subheader("⚡ Impulse Buying Index")
+
+    item_counts = df["title"].value_counts()
+    repeat_items = (item_counts > 1).sum()
+    impulse_items = (item_counts == 1).sum()
+    impulse_score = impulse_items / len(item_counts) if len(item_counts) > 0 else 0.0
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Unique Items Bought Once", impulse_items)
+    c2.metric("Items Reordered", repeat_items)
+    c3.metric("Impulse Score", f"{impulse_score:.2f}")
+
+    if impulse_score > 0.7:
+        st.warning("High impulse buying: most items were purchased only once.")
+    elif impulse_score < 0.4:
+        st.success("Low impulse buying: you tend to buy repeat-use, practical items.")
+    else:
+        st.info("Moderate impulse buying behavior.")
+
+    # Category dominance
+    st.markdown("---")
+    st.subheader("📊 Category Drivers of Your Spending")
+
+    if "category" in df.columns:
+        cat_spend = (
+            df.groupby("category")["item_price"]
+            .sum()
+            .sort_values(ascending=False)
+            .reset_index()
+        )
+        if not cat_spend.empty:
+            fig2 = px.bar(
+                cat_spend.head(10),
+                x="item_price",
+                y="category",
+                orientation="h",
+                title="Top Categories by Spend",
+            )
+            fig2.update_layout(xaxis_title="Total Spend", yaxis_title="Category")
+            st.plotly_chart(fig2, use_container_width=True)
+
+            st.write("### Your Top Life Categories by Spend:")
+            top3 = cat_spend.head(3)["category"].tolist()
+            for i, cat in enumerate(top3, start=1):
+                st.write(f"- **#{i}:** {cat}")
+    else:
+        st.info("No category information available (inferred or raw).")
+
+    # Time-of-day & weekday behavior
+    st.markdown("---")
+    st.subheader("🕒 When You Shop the Most")
+
+    df_time = df.copy()
+    df_time["hour"] = df_time["order_date"].dt.hour
+    df_time["weekday"] = df_time["order_date"].dt.day_name()
+
+    if df_time["hour"].notna().any():
+        busiest_hour = int(df_time["hour"].mode()[0])
+    else:
+        busiest_hour = None
+
+    if df_time["weekday"].notna().any():
+        busiest_day = df_time["weekday"].mode()[0]
+    else:
+        busiest_day = None
+
+    c1, c2 = st.columns(2)
+    c1.metric("Most Frequent Shopping Hour", f"{busiest_hour}:00" if busiest_hour is not None else "N/A")
+    c2.metric("Most Frequent Shopping Day", busiest_day if busiest_day is not None else "N/A")
+
+    heat = df_time.groupby(["weekday", "hour"]).size().unstack(fill_value=0)
+    weekdays = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+    # Reindex rows in weekday order if present
+    heat = heat.reindex(weekdays)
+
+    fig3 = go.Figure(
+        data=go.Heatmap(
+            z=heat.values,
+            x=heat.columns,
+            y=heat.index,
+            colorscale="Blues",
+        )
+    )
+    fig3.update_layout(
+        title="Order Frequency by Weekday and Hour",
+        xaxis_title="Hour of Day",
+        yaxis_title="Weekday",
+    )
+    st.plotly_chart(fig3, use_container_width=True)
+
+    # Narrative summary
+    st.markdown("---")
+    st.subheader("📖 Your Amazon Story — Summary")
+
+    behavior_label = (
+        "high" if impulse_score > 0.7 else "moderate" if impulse_score > 0.4 else "low"
+    )
+    summary_text = f"""
+You placed **{total_orders} orders**, spending an estimated **${total_spend:,.2f}**.
+
+Your estimated carbon footprint from deliveries and packaging is **{est_total_emissions:,.1f} kg CO₂e**.
+
+Based on an assumed non-Prime shipping cost of **$5.99** per order, your estimated shipping savings are **${shipping_savings:,.2f}**, meaning your Prime membership is **{"likely worth it" if net_value > 0 else "probably not justified"}** on shipping alone.
+
+Your impulse score of **{impulse_score:.2f}** suggests **{behavior_label}** impulse-buying behavior.
+"""
+    st.info(summary_text)
+
+
+# -----------------------------
 # MAIN APP
 # -----------------------------
 def main():
@@ -707,6 +897,7 @@ def main():
             "Returns",
             "Digital",
             "Cart",
+            "Insights",
             "Raw tables",
         ],
     )
@@ -727,10 +918,13 @@ def main():
         digital_page(tables)
     elif page == "Cart":
         cart_history_page(tables)
+    elif page == "Insights":
+        insights_page(filtered_df)
     elif page == "Raw tables":
         raw_tables_page(tables)
 
     st.sidebar.markdown("---")
+    st.sidebar.write("Built for you by Roci 🛰️")
 
 
 if __name__ == "__main__":
