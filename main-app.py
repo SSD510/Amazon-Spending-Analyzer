@@ -683,7 +683,7 @@ def raw_tables_page(tables: dict[str, pd.DataFrame]):
 # INSIGHTS / CARBON FOOTPRINT PAGE
 # -----------------------------
 def insights_page(df: pd.DataFrame):
-    st.title("🧠 Deep Insights — Behavior, Prime Value, and Carbon Footprint")
+    st.title("🧠 Insights — Behavior, Prime Value, and Carbon Footprint")
 
     # Safety checks
     if "order_id" not in df.columns or "order_date" not in df.columns or "item_price" not in df.columns:
