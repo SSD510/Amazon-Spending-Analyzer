@@ -903,7 +903,7 @@ def main():
     )
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("### Filters")
+    st.sidebar.markdown("### Data Science Mode")
     filtered_df = filters_panel(orders_df)
 
     if page == "Overview":
